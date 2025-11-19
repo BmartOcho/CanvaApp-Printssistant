@@ -12,7 +12,5 @@
       }
     ]
   },
-  "intents": [
-    "design-editor"
-  ]
+  "intents": ["design-editor"]
 }
