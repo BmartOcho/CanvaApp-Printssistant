@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button, Box, Text } from "@canva/app-ui-kit";
-import { getCurrentPageContext } from "@canva/design";
+import { getCurrentPageContext, selection } from "@canva/design";
 
 export default function App() {
   const [status, setStatus] = useState("Waiting…");
@@ -9,6 +9,7 @@ export default function App() {
     try {
       setStatus("Scanning…");
 
+      // Try to get the page
       const ctx = await getCurrentPageContext();
 
       if (!ctx) {
@@ -16,9 +17,13 @@ export default function App() {
         return;
       }
 
-      const count = ctx.elements.length;
+      // Canva does NOT provide full element lists.
+      // The only element info we *can* read is current selection.
+      const selected = await selection.get();
 
-      setStatus(`Found ${count} elements on this page.`);
+      const count = selected?.elements?.length ?? 0;
+
+      setStatus(`Selected ${count} elements.`);
     } catch (err) {
       console.error(err);
       setStatus("Error");
