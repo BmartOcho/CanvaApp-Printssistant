@@ -3,10 +3,7 @@ import { createRoot } from "react-dom/client";
 import { AppUiProvider } from "@canva/app-ui-kit";
 import "@canva/app-ui-kit/styles.css";
 
-import { App } from "./app";
-
-// Your CLI template automatically handles mounting.
-// Just render your app normally.
+import App from "./app";  // <-- FIXED
 
 const rootEl = document.getElementById("root");
 if (!rootEl) {
