@@ -1,0 +1,16 @@
+{
+  "$schema": "https://www.canva.dev/schemas/app/v1/manifest-schema.json",
+  "manifest_schema_version": 1,
+  "app_id": "AAG5KzigTTw",
+  "name": "Printssistant",
+  "description": "Preflight helper for print-ready Canva designs.",
+  "runtime": {
+    "permissions": [
+      {
+        "name": "canva:design:content:read",
+        "type": "mandatory"
+      }
+    ]
+  },
+  "intents": ["design-editor"]
+}
