@@ -1,48 +1,18 @@
 {
   "$schema": "https://www.canva.dev/schemas/app/v1/manifest-schema.json",
   "manifest_schema_version": 1,
-<<<<<<< local config with changes
   "app_id": "AAG5KzigTTw",
   "name": "Printssistant",
   "description": "Preflight helper for print-ready Canva designs.",
-=======
-
->>>>>>> remote config from Developer Portal
   "runtime": {
     "permissions": [
       {
-<<<<<<< local config with changes
-=======
-        "name": "canva:brandkit:read",
-        "type": "mandatory"
-      },
-      {
-        "name": "canva:asset:private:read",
-        "type": "mandatory"
-      },
-      {
-        "name": "canva:asset:private:write",
-        "type": "mandatory"
-      },
-      {
->>>>>>> remote config from Developer Portal
         "name": "canva:design:content:read",
         "type": "mandatory"
-<<<<<<< local config with changes
-=======
-      },
-      {
-        "name": "canva:design:content:write",
-        "type": "mandatory"
->>>>>>> remote config from Developer Portal
       }
     ]
-<<<<<<< local config with changes
   },
   "intents": [
     "design-editor"
   ]
-=======
-  }
->>>>>>> remote config from Developer Portal
 }
