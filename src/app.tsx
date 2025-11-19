@@ -10,18 +10,19 @@ export const App = () => {
     try {
       setStatus("Scanning…");
 
-      await openDesign({ type: "current_page" }, async (session) => {
-        const page = session.page;
+      // Correct SDK v2 usage — no callback!
+      const session = await openDesign({ scope: "current_page" });
 
-        if (!page.dimensions) {
-          setStatus("No fixed page dimensions available.");
-          setPageInfo(null);
-          return;
-        }
+      const page = session.page;
 
-        setPageInfo(page.dimensions);
-        setStatus("Success!");
-      });
+      if (!page.dimensions) {
+        setStatus("No fixed page dimensions available.");
+        setPageInfo(null);
+        return;
+      }
+
+      setPageInfo(page.dimensions);
+      setStatus("Success!");
     } catch (error) {
       console.error(error);
       setStatus("Failed to read design.");
