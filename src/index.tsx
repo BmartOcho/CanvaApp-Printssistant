@@ -1,24 +1,21 @@
-import { createRoot } from "react-dom/client";
+import { AppI18nProvider } from "@canva/app-i18n-kit";
 import { AppUiProvider } from "@canva/app-ui-kit";
 import "@canva/app-ui-kit/styles.css";
-import { prepareDesignEditor } from "@canva/intents/design";
+import { createRoot } from "react-dom/client";
+import React from "react";
+import { App } from "./app"; // Notice we use { App } for named export
 
-import App from "./app";
+const rootEl = document.getElementById("root");
+if (!rootEl) {
+  throw new Error("Root element not found");
+}
 
-prepareDesignEditor({
-  render: async () => {
-    const rootElement = document.getElementById("root");
+const root = createRoot(rootEl);
 
-    if (!rootElement) {
-      throw new Error("Root element missing");
-    }
-
-    const root = createRoot(rootElement);
-
-    root.render(
-      <AppUiProvider>
-        <App />
-      </AppUiProvider>
-    );
-  },
-});
+root.render(
+  <AppI18nProvider>
+    <AppUiProvider>
+      <App />
+    </AppUiProvider>
+  </AppI18nProvider>
+);

@@ -1,8 +1,7 @@
-import React, { useState } from "react";
-import { Button, Box, Text, Select, Rows, Alert } from "@canva/app-ui-kit";
+import { Box, Button, Select, Text, Rows } from "@canva/app-ui-kit";
+import { getCurrentPageContext, overlay } from "@canva/design";
 import { requestOpenExternalUrl } from "@canva/platform";
-import { overlay, getCurrentPageContext } from "@canva/design";
-import { checkMargins, PreflightIssue } from "../utils/preflight_checks";
+import React, { useState } from "react";
 import { useIntl } from "react-intl";
 
 export const DOCS_URL = "https://www.canva.dev/docs/apps/";
@@ -28,7 +27,6 @@ export function App() {
   const [status, setStatus] = useState("Ready");
   const [radiusInches, setRadiusInches] = useState(0.25);
   const [bleedInches, setBleedInches] = useState(0.125);
-  const [issues, setIssues] = useState<PreflightIssue[]>([]);
 
   const intl = useIntl();
 
@@ -97,25 +95,7 @@ export function App() {
   }
 
   // -------------------------
-  // 2. CHECK MARGINS
-  // -------------------------
-  async function runPreflight() {
-    setIssues([]);
-    setStatus("Scanning design...");
-    
-    // Run the logic we moved to the utility file
-    const results = await checkMargins(bleedInches);
-    
-    if (results.length === 0) {
-      setStatus("✅ No margin issues found.");
-    } else {
-      setStatus(`⚠️ Found ${results.length} issue(s).`);
-      setIssues(results);
-    }
-  }
-
-  // -------------------------
-  // 3. ADD ROUNDED CORNERS (Demo)
+  // 2. ADD ROUNDED CORNERS
   // -------------------------
   async function addRoundedCorners() {
     try {
@@ -172,28 +152,29 @@ export function App() {
         </Box>
 
         {/* ACTION BUTTONS */}
-        <Rows spacing="1u">
-          <Button variant="primary" onClick={runPreflight} stretch>
-            Check Margins
-          </Button>
-          <Button variant="secondary" onClick={applyGuides} stretch>
+        <Button variant="primary" onClick={applyGuides} stretch>
             Show Visual Guides
-          </Button>
-        </Rows>
+        </Button>
 
-        {/* PREFLIGHT RESULTS AREA */}
-        {issues.length > 0 && (
-          <Box background="neutralLow" padding="1u" borderRadius="standard">
-            <Text weight="bold" tone="critical">Design Issues:</Text>
-            <Rows spacing="1u">
-              {issues.map((issue, i) => (
-                <Alert key={i} tone={issue.type === 'error' ? 'critical' : 'caution'}>
-                  {issue.message}
-                </Alert>
-              ))}
-            </Rows>
-          </Box>
-        )}
+        <Box paddingTop="1u" paddingBottom="1u" borderTop="standard">
+             <Text weight="bold">Extras</Text>
+        </Box>
+
+        {/* CORNER RADIUS */}
+        <Box>
+            <Text size="small">Corner Radius Overlay</Text>
+            <Select
+                value={radiusInches}
+                onChange={(v) => setRadiusInches(Number(v))}
+                options={radiusOptions}
+                stretch
+            />
+            <Box paddingTop="1u">
+                <Button variant="secondary" onClick={addRoundedCorners} stretch>
+                    Add Corners
+                </Button>
+            </Box>
+        </Box>
 
         {/* STATUS BAR */}
         <Box paddingTop="2u" borderTop="standard">
@@ -207,5 +188,3 @@ export function App() {
     </Box>
   );
 }
-
-export default App;
