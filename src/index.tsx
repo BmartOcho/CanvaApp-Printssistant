@@ -1,19 +1,24 @@
-import React from "react";
 import { createRoot } from "react-dom/client";
 import { AppUiProvider } from "@canva/app-ui-kit";
 import "@canva/app-ui-kit/styles.css";
+import { prepareDesignEditor } from "@canva/intents/design";
 
-import App from "./app";  // <-- FIXED
+import App from "./app";
 
-const rootEl = document.getElementById("root");
-if (!rootEl) {
-  throw new Error("Root element not found");
-}
+prepareDesignEditor({
+  render: async () => {
+    const rootElement = document.getElementById("root");
 
-const root = createRoot(rootEl);
+    if (!rootElement) {
+      throw new Error("Root element missing");
+    }
 
-root.render(
-  <AppUiProvider>
-    <App />
-  </AppUiProvider>
-);
+    const root = createRoot(rootElement);
+
+    root.render(
+      <AppUiProvider>
+        <App />
+      </AppUiProvider>
+    );
+  },
+});

@@ -41,7 +41,7 @@
   "include": [
     "./src/**/*",
     "./backend/**/*",
-    "./utils/**/*",
+    "utils/**/*",
     "./scripts/**/*",
     "./declarations/declarations.d.ts",
     "./styles/**/*",

@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { Button, Box, Text, Select } from "@canva/app-ui-kit";
+import { Button, Box, Text, Select, Rows, Alert } from "@canva/app-ui-kit";
 import { requestOpenExternalUrl } from "@canva/platform";
 import { overlay, getCurrentPageContext } from "@canva/design";
-import { useAddElement } from "../utils/use_add_element";
+import { checkMargins, PreflightIssue } from "../utils/preflight_checks";
 import { useIntl } from "react-intl";
 
 export const DOCS_URL = "https://www.canva.dev/docs/apps/";
@@ -17,22 +17,27 @@ const radiusOptions = [
   { label: "0.5 in", value: 0.5 }
 ];
 
+// Standard bleed options (US vs EU standards)
+const bleedOptions = [
+  { label: "0.125 in (Standard US)", value: 0.125 },
+  { label: "3 mm (Standard EU)", value: 0.118 }, // approx 3mm in inches
+  { label: "None", value: 0 }
+];
+
 export function App() {
   const [status, setStatus] = useState("Ready");
   const [radiusInches, setRadiusInches] = useState(0.25);
+  const [bleedInches, setBleedInches] = useState(0.125);
+  const [issues, setIssues] = useState<PreflightIssue[]>([]);
 
   const intl = useIntl();
-  const addElement = useAddElement();
 
   // -------------------------
-  // APPLY PRINT GUIDES
+  // 1. APPLY PRINT GUIDES
   // -------------------------
   async function applyGuides() {
     try {
-      setStatus(intl.formatMessage({
-        defaultMessage: "Generating guides…",
-        description: "Status message when guides are being generated"
-      }));
+      setStatus("Generating guides…");
 
       const ctx = await getCurrentPageContext();
       if (!ctx || !ctx.dimensions) {
@@ -41,12 +46,13 @@ export function App() {
       }
 
       const { width, height } = ctx.dimensions;
-      const offset = 0.125 * INCH;  // bleed + margin amount
+      // Convert inches to pixels for the offset
+      const offset = bleedInches * INCH;
 
       // Clear any previous overlays
       await overlay.clear();
 
-      // Trim (Red)
+      // 1. Trim Box (Red) - The physical edge of the cut paper
       await overlay.addRectangle({
         x: 0,
         y: 0,
@@ -54,57 +60,68 @@ export function App() {
         height,
         strokeColor: "#FF0000",
         strokeWidth: 2,
-        name: "Trim Box"
+        name: "Trim Box (Cut Line)"
       });
 
-      // Safe Margin (Green)
-      await overlay.addRectangle({
-        x: offset,
-        y: offset,
-        width: width - offset * 2,
-        height: height - offset * 2,
-        strokeColor: "#00FF00",
-        strokeWidth: 2,
-        name: "Margin Box"
-      });
+      // 2. Safe Margin (Green) - Keep text inside this!
+      if (offset > 0) {
+        await overlay.addRectangle({
+          x: offset,
+          y: offset,
+          width: width - offset * 2,
+          height: height - offset * 2,
+          strokeColor: "#00FF00",
+          strokeWidth: 1,
+          name: "Safe Margin"
+        });
 
-      // Bleed (Blue)
-      await overlay.addRectangle({
-        x: -offset,
-        y: -offset,
-        width: width + offset * 2,
-        height: height + offset * 2,
-        strokeColor: "#0000FF",
-        strokeWidth: 2,
-        name: "Bleed Box"
-      });
+        // 3. Bleed Box (Blue) - Backgrounds must extend to here
+        // Note: Negative coordinates are outside the canvas
+        await overlay.addRectangle({
+          x: -offset,
+          y: -offset,
+          width: width + offset * 2,
+          height: height + offset * 2,
+          strokeColor: "#0000FF",
+          strokeWidth: 1,
+          name: "Bleed Area"
+        });
+      }
 
-      setStatus(intl.formatMessage({
-        defaultMessage: "Guides applied!",
-        description: "Success message when guides are applied"
-      }));
+      setStatus("Guides applied!");
 
     } catch (err) {
       console.error("Guide generation error:", err);
-      setStatus(intl.formatMessage({
-        defaultMessage: "Error generating guides.",
-        description: "Error message when guide generation fails"
-      }));
+      setStatus("Error generating guides.");
     }
   }
 
   // -------------------------
-  // ADD ROUNDED CORNER OVERLAY
+  // 2. CHECK MARGINS
+  // -------------------------
+  async function runPreflight() {
+    setIssues([]);
+    setStatus("Scanning design...");
+    
+    // Run the logic we moved to the utility file
+    const results = await checkMargins(bleedInches);
+    
+    if (results.length === 0) {
+      setStatus("✅ No margin issues found.");
+    } else {
+      setStatus(`⚠️ Found ${results.length} issue(s).`);
+      setIssues(results);
+    }
+  }
+
+  // -------------------------
+  // 3. ADD ROUNDED CORNERS (Demo)
   // -------------------------
   async function addRoundedCorners() {
     try {
       setStatus("Adding rounded corner overlay…");
-
       const ctx = await getCurrentPageContext();
-      if (!ctx || !ctx.dimensions) {
-        setStatus("Could not read page size.");
-        return;
-      }
+      if (!ctx || !ctx.dimensions) return;
 
       const { width, height } = ctx.dimensions;
       const r = radiusInches * INCH;
@@ -120,39 +137,9 @@ export function App() {
         name: `Rounded Corners (${radiusInches} in)`
       });
 
-      setStatus(`Rounded corners applied (${radiusInches} in).`);
-
+      setStatus(`Rounded corners applied.`);
     } catch (err) {
-      console.error("Round corner error:", err);
-      setStatus("Error adding rounded corners.");
-    }
-  }
-
-  // -------------------------
-  // SAMPLE TEXT ELEMENT (demo)
-  // -------------------------
-  async function doSomethingCool() {
-    try {
-      setStatus(intl.formatMessage({
-        defaultMessage: "Adding text element...",
-        description: "Status when adding text element"
-      }));
-
-      await addElement({
-        type: "text",
-        children: ["Hello from Canva App!"],
-      });
-
-      setStatus(intl.formatMessage({
-        defaultMessage: "Text element added!",
-        description: "Success text"
-      }));
-
-    } catch {
-      setStatus(intl.formatMessage({
-        defaultMessage: "Error adding element.",
-        description: "Error adding element"
-      }));
+      console.error(err);
     }
   }
 
@@ -161,57 +148,62 @@ export function App() {
   }
 
   return (
-    <Box padding="1u">
-      <Text>
-        {intl.formatMessage({
-          defaultMessage:
-            "To make changes to this app, edit the {filename} file, then close and reopen the app in the editor to preview the changes.",
-          description: "Instructions text"
-        }, { filename: "src/app.tsx" })}
-      </Text>
-
-      <Box padding="1u">
-        <Button variant="primary" onClick={doSomethingCool}>
+    <Box padding="2u">
+      <Rows spacing="2u">
+        <Text>
           {intl.formatMessage({
-            defaultMessage: "Do something cool",
-            description: "Button text"
+            defaultMessage: "Prepare your design for professional printing.",
+            description: "App introduction"
           })}
+        </Text>
+
+        {/* BLEED SETTINGS */}
+        <Box>
+          <Text weight="bold">Bleed & Margin Size</Text>
+          <Select
+            value={bleedInches}
+            onChange={(v) => setBleedInches(Number(v))}
+            options={bleedOptions}
+            stretch
+          />
+          <Text tone="secondary" size="small">
+            Ensure "Show print bleed" is enabled in your Editor settings to see outside the canvas.
+          </Text>
+        </Box>
+
+        {/* ACTION BUTTONS */}
+        <Rows spacing="1u">
+          <Button variant="primary" onClick={runPreflight} stretch>
+            Check Margins
+          </Button>
+          <Button variant="secondary" onClick={applyGuides} stretch>
+            Show Visual Guides
+          </Button>
+        </Rows>
+
+        {/* PREFLIGHT RESULTS AREA */}
+        {issues.length > 0 && (
+          <Box background="neutralLow" padding="1u" borderRadius="standard">
+            <Text weight="bold" tone="critical">Design Issues:</Text>
+            <Rows spacing="1u">
+              {issues.map((issue, i) => (
+                <Alert key={i} tone={issue.type === 'error' ? 'critical' : 'caution'}>
+                  {issue.message}
+                </Alert>
+              ))}
+            </Rows>
+          </Box>
+        )}
+
+        {/* STATUS BAR */}
+        <Box paddingTop="2u" borderTop="standard">
+          <Text size="small" tone="secondary">Status: {status}</Text>
+        </Box>
+
+        <Button variant="tertiary" size="small" onClick={openDocs}>
+          Help / Docs
         </Button>
-      </Box>
-
-      <Box padding="1u">
-        <Button variant="secondary" onClick={applyGuides}>
-          Apply Guides
-        </Button>
-      </Box>
-
-      <Box padding="1u">
-        <Text weight="bold">Rounded Corner Radius</Text>
-        <Select
-          value={radiusInches}
-          onChange={(v) => setRadiusInches(Number(v))}
-          options={radiusOptions}
-        />
-      </Box>
-
-      <Box padding="1u">
-        <Button variant="secondary" onClick={addRoundedCorners}>
-          Add Round Corners
-        </Button>
-      </Box>
-
-      <Box padding="1u">
-        <Text>{status}</Text>
-      </Box>
-
-      <Box padding="1u">
-        <Button variant="tertiary" onClick={openDocs}>
-          {intl.formatMessage({
-            defaultMessage: "Open Canva Apps SDK docs",
-            description: "Open docs button"
-          })}
-        </Button>
-      </Box>
+      </Rows>
     </Box>
   );
 }
