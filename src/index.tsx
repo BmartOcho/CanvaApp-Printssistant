@@ -1,9 +1,10 @@
-import { AppI18nProvider } from "@canva/app-i18n-kit";
-import { AppUiProvider } from "@canva/app-ui-kit";
-import "@canva/app-ui-kit/styles.css";
-import { createRoot } from "react-dom/client";
 import React from "react";
-import { App } from "./app"; // Notice we use { App } for named export
+import { createRoot } from "react-dom/client";
+import { AppUiProvider } from "@canva/app-ui-kit";
+import { AppI18nProvider } from "@canva/app-i18n-kit";
+import "@canva/app-ui-kit/styles.css";
+
+import App from "./app"; 
 
 const rootEl = document.getElementById("root");
 if (!rootEl) {
