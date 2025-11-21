@@ -1,86 +1,156 @@
-/* eslint-disable formatjs/no-literal-string-in-jsx */
 import { TestAppI18nProvider } from "@canva/app-i18n-kit";
 import { TestAppUiProvider } from "@canva/app-ui-kit";
-import { requestOpenExternalUrl } from "@canva/platform";
-import { fireEvent, render } from "@testing-library/react";
-import type { RenderResult } from "@testing-library/react";
-import type { ReactNode } from "react";
-import { useAddElement } from "src/utils/use_add_element";
-import { App, DOCS_URL } from "../app";
+import { fireEvent, render, screen } from "@testing-library/react";
+import React from "react";
+import App from "../app";
+import * as canvaDesign from "@canva/design";
 
-function renderInTestProvider(node: ReactNode): RenderResult {
+// Mock the entire @canva/design module
+jest.mock("@canva/design", () => ({
+  ...jest.requireActual("@canva/design"),
+  getCurrentPageContext: jest.fn(),
+  addNativeElement: jest.fn(),
+}));
+
+const mockGetCurrentPageContext = canvaDesign.getCurrentPageContext as jest.Mock;
+const mockAddNativeElement = canvaDesign.addNativeElement as jest.Mock;
+
+const renderApp = () => {
   return render(
-    // In a test environment, you should wrap your apps in `TestAppI18nProvider` and `TestAppUiProvider`, rather than `AppI18nProvider` and `AppUiProvider`
     <TestAppI18nProvider>
-      <TestAppUiProvider>{node}</TestAppUiProvider>,
-    </TestAppI18nProvider>,
+      <TestAppUiProvider>
+        <App />
+      </TestAppUiProvider>
+    </TestAppI18nProvider>
   );
-}
+};
 
-jest.mock("utils/use_add_element");
-
-// This test demonstrates how to test code that uses functions from the Canva Apps SDK
-// For more information on testing with the Canva Apps SDK, see https://www.canva.dev/docs/apps/testing/
-describe("Hello World Tests", () => {
-  // Mocking the useAddElement hook
-  const mockAddElement = jest.fn();
-  const mockAddUseElement = jest.mocked(useAddElement);
-  const mockRequestOpenExternalUrl = jest.mocked(requestOpenExternalUrl);
-
-  beforeEach(() => {
-    jest.resetAllMocks();
-    mockAddUseElement.mockReturnValue(mockAddElement);
-    mockRequestOpenExternalUrl.mockResolvedValue({ status: "completed" });
+describe("App Component", () => {
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
-  // this test uses a mock in place of the useAddElement hook
-  it("should add a text element when the button is clicked", () => {
-    // assert that the mocks are in the expected clean state
-    expect(mockAddUseElement).not.toHaveBeenCalled();
-    expect(mockAddElement).not.toHaveBeenCalled();
-
-    const result = renderInTestProvider(<App />);
-
-    // the hook should have been called in the render process but not the callback
-    expect(mockAddUseElement).toHaveBeenCalled();
-    expect(mockAddElement).not.toHaveBeenCalled();
-
-    // get a reference to the do something cool button element
-    const doSomethingCoolBtn = result.getByRole("button", {
-      name: "Do something cool",
-    });
-
-    // programmatically simulate clicking the button
-    fireEvent.click(doSomethingCoolBtn);
-
-    // we expect that addElement has been called by the button's click handler
-    expect(mockAddElement).toHaveBeenCalled();
+  it("should render the setup screen initially", () => {
+    renderApp();
+    expect(screen.getByText("Printssistant Job Setup")).toBeInTheDocument();
+    expect(screen.getByText("Select your target print product to begin preflight checks.")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start Preflight" })).toBeInTheDocument();
   });
 
-  // this test uses a mock in place of the @canva/platform requestOpenExternalUrl function
-  it("should call `requestOpenExternalUrl` when the button is clicked", () => {
-    expect(mockRequestOpenExternalUrl).not.toHaveBeenCalled();
-
-    const result = renderInTestProvider(<App />);
-
-    // get a reference to the Apps SDK button by name
-    const sdkButton = result.getByRole("button", {
-      name: "Open Canva Apps SDK docs",
+  it('should move to the checklist screen on successful size verification', async () => {
+    mockGetCurrentPageContext.mockResolvedValue({
+      dimensions: { width: 336, height: 192 }, // 3.5" x 2" at 96 PPI
     });
 
-    expect(mockRequestOpenExternalUrl).not.toHaveBeenCalled();
-    fireEvent.click(sdkButton);
-    expect(mockRequestOpenExternalUrl).toHaveBeenCalled();
+    renderApp();
+    
+    fireEvent.click(screen.getByRole("button", { name: "Start Preflight" }));
 
-    // assert that the requestOpenExternalUrl function was called with the expected arguments
-    expect(mockRequestOpenExternalUrl.mock.calls[0][0]).toEqual({
-      url: DOCS_URL,
-    });
+    await screen.findByText("Preflight: Business Card (US)");
+    expect(screen.getByText("Preflight: Business Card (US)")).toBeInTheDocument();
+    expect(screen.queryByText("Printssistant Job Setup")).not.toBeInTheDocument();
   });
 
-  // this test demonstrates the use of a snapshot test
+  it('should show a warning on size mismatch and a "Proceed Anyway" button', async () => {
+    mockGetCurrentPageContext.mockResolvedValue({
+      dimensions: { width: 500, height: 500 },
+    });
+
+    renderApp();
+    
+    fireEvent.click(screen.getByRole("button", { name: "Start Preflight" }));
+
+    await screen.findByText(/Current size/);
+    expect(screen.getByText(/does not match/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Proceed Anyway" })).toBeInTheDocument();
+  });
+
+  it('should move to checklist screen when "Proceed Anyway" is clicked', async () => {
+    mockGetCurrentPageContext.mockResolvedValue({
+      dimensions: { width: 500, height: 500 },
+    });
+
+    renderApp();
+    
+    fireEvent.click(screen.getByRole("button", { name: "Start Preflight" }));
+    await screen.findByRole("button", { name: "Proceed Anyway" });
+    fireEvent.click(screen.getByRole("button", { name: "Proceed Anyway" }));
+
+    await screen.findByText("Preflight: Business Card (US)");
+    expect(screen.queryByText(/Current size/)).not.toBeInTheDocument();
+  });
+
+  it('should call addNativeElement when "Add Trim/Bleed Guides" is clicked', async () => {
+    mockGetCurrentPageContext.mockResolvedValue({
+      dimensions: { width: 336, height: 192 },
+    });
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Start Preflight" }));
+    await screen.findByText("Preflight: Business Card (US)");
+    
+    const addGuidesButton = screen.getByRole('button', { name: '🛑 1. View Trim & Bleed' });
+    fireEvent.click(addGuidesButton);
+
+    await screen.findByRole('button', { name: 'Add Trim/Bleed Guides'});
+    fireEvent.click(screen.getByRole('button', { name: 'Add Trim/Bleed Guides'}));
+    
+    expect(mockAddNativeElement).toHaveBeenCalledTimes(2);
+  });
+
+  it("should update checklist state and show success message", async () => {
+    mockGetCurrentPageContext.mockResolvedValue({
+      dimensions: { width: 336, height: 192 },
+    });
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Start Preflight" }));
+    await screen.findByText("Preflight: Business Card (US)");
+
+    // Complete first item
+    const addGuidesToggle = screen.getByRole('button', { name: '🛑 1. View Trim & Bleed' });
+    fireEvent.click(addGuidesToggle);
+    const addGuidesButton = await screen.findByRole('button', { name: 'Add Trim/Bleed Guides' });
+    fireEvent.click(addGuidesButton);
+    const verifyGuidesButton = await screen.findByRole('button', { name: 'I have verified this' });
+    fireEvent.click(verifyGuidesButton);
+    expect(await screen.findByText(/✅ 1. View Trim & Bleed - Checked/)).toBeInTheDocument();
+    
+    // Complete second item
+    const verifyBleedToggle = screen.getByRole('button', { name: '🛑 2. Verify Bleed Extends' });
+    fireEvent.click(verifyBleedToggle);
+    const verifyBleedButton = await screen.findByRole('button', { name: 'I have verified this' });
+    fireEvent.click(verifyBleedButton);
+    expect(await screen.findByText(/✅ 2. Verify Bleed Extends - Checked/)).toBeInTheDocument();
+
+    // Complete third item
+    const colorCheckToggle = screen.getByRole('button', { name: '🛑 3. Color Reality Check' });
+    fireEvent.click(colorCheckToggle);
+    const verifyColorButton = await screen.findByRole('button', { name: 'I have verified this' });
+    fireEvent.click(verifyColorButton);
+    expect(await screen.findByText(/✅ 3. Color Reality Check - Checked/)).toBeInTheDocument();
+
+    // Check for success message
+    expect(await screen.findByText("🎉 Ready for Production!")).toBeInTheDocument();
+  });
+
+  it('should return to setup screen when "Change Job" is clicked', async () => {
+    mockGetCurrentPageContext.mockResolvedValue({
+      dimensions: { width: 336, height: 192 },
+    });
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Start Preflight" }));
+    await screen.findByText("Preflight: Business Card (US)");
+
+    fireEvent.click(screen.getByRole("button", { name: "Change Job" }));
+
+    expect(await screen.findByText("Printssistant Job Setup")).toBeInTheDocument();
+  });
+
   it("should have a consistent snapshot", () => {
-    const result = renderInTestProvider(<App />);
-    expect(result.container).toMatchSnapshot();
+    const { container } = renderApp();
+    expect(container).toMatchSnapshot();
   });
 });

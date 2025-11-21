@@ -1,147 +1,226 @@
 import React, { useState } from "react";
-import { Button, Box, Text, Select, Rows } from "@canva/app-ui-kit";
-import { requestOpenExternalUrl } from "@canva/platform";
+import { Box, Text, Select, Rows, Button } from "@canva/app-ui-kit";
 import { addElementAtPoint, getCurrentPageContext } from "@canva/design";
-import { useIntl } from "react-intl";
-
-export const DOCS_URL = "https://www.canva.dev/docs/apps/";
+import { PRINT_JOBS } from "./data/print_specs";
+import { ChecklistItem } from "./components/ChecklistItem";
 
 const INCH = 96;
 
-// Standard bleed options
-const bleedOptions = [
-  { label: "0.125 in (Standard US)", value: 0.125 },
-  { label: "3 mm (Standard EU)", value: 0.118 },
-  { label: "None", value: 0 }
-];
-
 export default function App() {
-  const [status, setStatus] = useState("Ready");
-  const [bleedInches, setBleedInches] = useState(0.125);
+  // App State
+  const [step, setStep] = useState<"setup" | "checklist">("setup");
+  const [selectedJobId, setSelectedJobId] = useState(PRINT_JOBS[0].id);
+  const [completedChecks, setCompletedChecks] = useState<string[]>([]);
+  const [sizeWarning, setSizeWarning] = useState<string | null>(null);
 
-  const intl = useIntl();
-
-  /**
-   * Helper to draw a rectangular outline using 4 thin lines.
-   * We use this because "stroke" support varies on shapes, but filled rectangles are reliable.
-   */
-  async function addGuideBox(x: number, y: number, w: number, h: number, color: string, name: string) {
-    const thickness = 2; // Line thickness in pixels
-    
-    // Define 4 rectangles to form a box outline
-    const paths = [
-        // Top
-        { d: `M 0 0 H ${w} V ${thickness} H 0 Z`, fill: { color } },
-        // Bottom
-        { d: `M 0 ${h - thickness} H ${w} V ${h} H 0 Z`, fill: { color } },
-        // Left
-        { d: `M 0 0 H ${thickness} V ${h} H 0 Z`, fill: { color } },
-        // Right
-        { d: `M ${w - thickness} 0 H ${w} V ${h} H ${w - thickness} Z`, fill: { color } }
-    ];
-
-    await addElementAtPoint({
-      type: "shape",
-      top: y,
-      left: x,
-      width: w,
-      height: h,
-      paths: paths,
-      viewBox: { width: w, height: h, top: 0, left: 0 }
-    });
-  }
+  const currentJob = PRINT_JOBS.find(j => j.id === selectedJobId) || PRINT_JOBS[0];
 
   // -------------------------
-  // APPLY PRINT GUIDES
+  // LOGIC: Size Verification
   // -------------------------
-  async function applyGuides() {
-    try {
-      setStatus("Adding guides...");
+  async function verifySize() {
+    const ctx = await getCurrentPageContext();
+    if (!ctx || !ctx.dimensions) return;
 
-      const ctx = await getCurrentPageContext();
-      if (!ctx || !ctx.dimensions) {
-        setStatus("Could not read page size.");
-        return;
-      }
+    const { width, height } = ctx.dimensions;
+    const currentW = width / INCH;
+    const currentH = height / INCH;
 
-      const { width, height } = ctx.dimensions;
-      const offset = bleedInches * INCH;
+    const isMatch = 
+      (Math.abs(currentW - currentJob.width) < 0.05 && Math.abs(currentH - currentJob.height) < 0.05) ||
+      (Math.abs(currentW - currentJob.height) < 0.05 && Math.abs(currentH - currentJob.width) < 0.05);
 
-      // 1. Trim Box (Red) - The cut line
-      await addGuideBox(0, 0, width, height, "#FF0000", "Trim Box");
-
-      // 2. Safe Margin (Green) - Inside the cut line
-      if (offset > 0) {
-        await addGuideBox(
-            offset, 
-            offset, 
-            width - (offset * 2), 
-            height - (offset * 2), 
-            "#00FF00", 
-            "Safe Margin"
-        );
-
-        // 3. Bleed Box (Blue) - Outside the cut line
-        // Note: Elements added at negative coordinates might only be visible 
-        // if "Show print bleed" is enabled in Canva settings.
-        await addGuideBox(
-            -offset, 
-            -offset, 
-            width + (offset * 2), 
-            height + (offset * 2), 
-            "#0000FF", 
-            "Bleed Box"
-        );
-      }
-
-      setStatus("Guides added as elements.");
-
-    } catch (err) {
-      console.error("Guide error:", err);
-      setStatus("Error adding guides.");
+    if (isMatch) {
+      setStep("checklist");
+      setSizeWarning(null);
+    } else {
+      setSizeWarning(
+        `Current size (${currentW.toFixed(2)}" x ${currentH.toFixed(2)}") does not match ${currentJob.name} (${currentJob.width}" x ${currentJob.height}"). Please resize your design.`
+      );
     }
   }
 
-  async function openDocs() {
-    await requestOpenExternalUrl({ url: DOCS_URL });
+  // -------------------------
+  // LOGIC: Add Trim & Bleed Guide (Visualization Only)
+  // -------------------------
+  async function addGuides() {
+    const ctx = await getCurrentPageContext();
+    if (!ctx || !ctx.dimensions) return;
+
+    const { width, height } = ctx.dimensions;
+    const bleed = currentJob.bleed * INCH;
+    
+    // Draw Trim Box (Red) - The final cut line
+    await addBox(0, 0, width, height, "#FF0000", "Trim Box (Cut Line)");
+    
+    // Draw Bleed Box (Blue) - Visualizing the required 1/8" or 3mm space
+    if (bleed > 0) {
+        await addBox(-bleed, -bleed, width + (bleed * 2), height + (bleed * 2), "#0000FF", "Bleed Guide");
+    }
+    toggleComplete("trim_bleed_guide_added");
   }
 
+  async function addBox(x: number, y: number, w: number, h: number, color: string, name: string) {
+    const thickness = 2;
+    const paths = [
+        { d: `M 0 0 H ${w} V ${thickness} H 0 Z`, fill: { color } },
+        { d: `M 0 ${h - thickness} H ${w} V ${h} H 0 Z`, fill: { color } },
+        { d: `M 0 0 H ${thickness} V ${h} H 0 Z`, fill: { color } },
+        { d: `M ${w - thickness} 0 H ${w} V ${h} H ${w - thickness} Z`, fill: { color } }
+    ];
+    await addElementAtPoint({ type: "shape", top: y, left: x, width: w, height: h, paths, viewBox: { width: w, height: h, top: 0, left: 0 }, name } as any);
+  }
+
+  // -------------------------
+  // VIEW LOGIC
+  // -------------------------
+  const toggleComplete = (id: string) => {
+    setCompletedChecks(prev => {
+        // Toggle logic: If already checked, remove it. If not, add it.
+        const isCurrentlyChecked = prev.includes(id);
+        if (isCurrentlyChecked) {
+            return prev.filter(item => item !== id);
+        }
+        return [...prev, id];
+    });
+  };
+
+  const allDone = completedChecks.length >= 4; // Check 4 items now
+
+  // -------------------------
+  // VIEW: Setup Screen (Step 1)
+  // -------------------------
+  if (step === "setup") {
+    return (
+      <Box padding="2u">
+        <Rows spacing="2u">
+          <Text size="large" weight="bold">Printssistant Job Setup</Text>
+          <Text>Select your target print product to begin preflight checks.</Text>
+          
+          <Select
+            value={selectedJobId}
+            onChange={(v) => { setSelectedJobId(v); setSizeWarning(null); setCompletedChecks([]); }}
+            options={PRINT_JOBS.map(j => ({ label: j.name, value: j.id }))}
+            stretch
+          />
+
+          {sizeWarning && (
+            <Box background="criticalLow" padding="1u" borderRadius="standard">
+              <Text tone="critical" size="small">{sizeWarning}</Text>
+            </Box>
+          )}
+
+          <Button variant="primary" onClick={verifySize} stretch>
+            Start Preflight
+          </Button>
+          
+          {sizeWarning && (
+             <Button variant="secondary" onClick={() => setStep("checklist")} stretch>
+               Proceed Anyway
+             </Button>
+          )}
+        </Rows>
+      </Box>
+    );
+  }
+
+  // -------------------------
+  // VIEW: Checklist Screen (Steps 2 & 3)
+  // -------------------------
   return (
     <Box padding="2u">
       <Rows spacing="2u">
-        <Text>
-          {intl.formatMessage({
-            defaultMessage: "Add print guides to your design.",
-            description: "App introduction"
-          })}
-        </Text>
-
-        {/* BLEED SETTINGS */}
-        <Box>
-          <Text weight="bold">Bleed & Margin Size</Text>
-          <Select
-            value={bleedInches}
-            onChange={(v) => setBleedInches(Number(v))}
-            options={bleedOptions}
-            stretch
-          />
-          <Text tone="secondary" size="small">
-            Note: These guides are added as shape elements. You can delete them before printing.
-          </Text>
+        <Box borderBottom="standard" paddingBottom="1u">
+            <Text size="large" weight="bold">Preflight: {currentJob.name}</Text>
+            <Button variant="tertiary" size="small" onClick={() => setStep("setup")}>Change Job</Button>
         </Box>
 
-        <Button variant="primary" onClick={applyGuides} stretch>
-            Add Visual Guides
-        </Button>
+        {/* CHECK 1: GUIDE VISUALIZATION (Action/Required) */}
+        <ChecklistItem
+          title="1. Visualize Trim & Bleed"
+          isComplete={completedChecks.includes("trim_bleed_guide_added")}
+          onComplete={() => toggleComplete("trim_bleed_guide_added")}
+          buttonLabel="Add Trim/Bleed Guides"
+          onAction={addGuides}
+          description={
+            <Rows spacing="1u">
+              <Text>Add temporary color-coded guides to ensure your design is safe to cut.</Text>
+              <Text size="small">
+                * **Red Box:** The final trim/cut line.<br/>
+                * **Blue Box:** The {currentJob.bleed}" bleed edge.<br/>
+                <br/>
+                Click the button to add these guides as layers.
+              </Text>
+            </Rows>
+          }
+        />
+        
+        {/* CHECK 2: SAFE ZONE/MARGIN CHECK (Native Feature) */}
+        <ChecklistItem
+          title="2. Check Safe Zone Margins"
+          isComplete={completedChecks.includes("native_margins")}
+          onComplete={() => toggleComplete("native_margins")}
+          buttonLabel=""
+          description={
+            <Rows spacing="1u">
+              <Text>Ensure vital elements like logos and text are away from the edges.</Text>
+              <Text size="small">
+                1. Go to **File {'>'} View Settings**.<br/>
+                2. Enable **Show Margins**.<br/>
+                3. Ensure no text or logos are on or outside the dotted margin line.
+              </Text>
+            </Rows>
+          }
+        />
 
-        {/* STATUS BAR */}
-        <Box paddingTop="2u" borderTop="standard">
-          <Text size="small" tone="secondary">Status: {status}</Text>
-        </Box>
+        {/* CHECK 3: BLEED CHECK (Native Feature) */}
+        <ChecklistItem
+          title="3. Verify Bleed Coverage"
+          isComplete={completedChecks.includes("bleed_coverage")}
+          onComplete={() => toggleComplete("bleed_coverage")}
+          buttonLabel=""
+          description={
+            <Rows spacing="1u">
+              <Text>Does your background or imagery extend past the cut line?</Text>
+              <Text size="small">
+                1. Go to **File {'>'} View Settings** and enable **Show print bleed**.<br/>
+                2. Stretch your background to cover all white space up to the **Blue Bleed Guide**.
+              </Text>
+            </Rows>
+          }
+        />
 
-        <Button variant="tertiary" size="small" onClick={openDocs}>
-          Help / Docs
-        </Button>
+        {/* CHECK 4: COLOR AND DPI (Export Settings) */}
+        <ChecklistItem
+          title="4. Color & Resolution Check"
+          isComplete={completedChecks.includes("color_dpi")}
+          onComplete={() => toggleComplete("color_dpi")}
+          buttonLabel=""
+          description={
+            <Rows spacing="1u">
+              <Text>Final check on image quality and color space conversion.</Text>
+              <Text size="small">
+                * **Color:** Print requires CMYK. Go to **Share {'>'} Download**, select **PDF Print**, and choose **CMYK** (Pro feature) for accurate colors.<br/>
+                * **DPI:** Zoom in to **200%** on any image. If it looks blurry on-screen, it will print blurry (300 DPI minimum).
+              </Text>
+            </Rows>
+          }
+        />
+
+
+        {/* SUCCESS STATE */}
+        {allDone && (
+          <Box background="positiveLow" padding="2u" borderRadius="standard" marginTop="2u">
+            <Rows spacing="1u">
+              <Text weight="bold" tone="positive">🎉 Ready for Production!</Text>
+              <Text>
+                Final steps: 
+                <br/>1. **Delete** the red/blue guide elements.
+                <br/>2. Go to **Share {'>'} Download**, select **PDF Print**, and check the option for **Crop marks and bleed**.
+              </Text>
+            </Rows>
+          </Box>
+        )}
       </Rows>
     </Box>
   );
