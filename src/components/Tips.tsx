@@ -55,7 +55,12 @@ export function TipCard({ tip, variant = "default" }: TipCardProps) {
         style={{ padding: "var(--space-sm)", margin: 0 }}
       >
         <div className="tip-content" style={{ fontSize: "11px" }}>
-          <strong><span aria-hidden="true">{getCategoryIcon(tip.category)}</span> {tip.title}<span aria-hidden="true">:</span></strong> {tip.content}
+          <strong>
+            <span aria-hidden="true">{getCategoryIcon(tip.category)}</span>
+            <span style={{ marginLeft: "4px" }}>{tip.title}</span>
+            <span aria-hidden="true">{intl.formatMessage(messages.symbolColon)}</span>
+          </strong>
+          <span style={{ marginLeft: "4px" }}>{tip.content}</span>
         </div>
       </div>
     );
@@ -77,7 +82,12 @@ export function TipCard({ tip, variant = "default" }: TipCardProps) {
           {getCategoryLabel(tip.category)}
         </span>
       </div>
-      <div className="tip-content">{tip.content}</div>
+      <div className="tip-content">
+        <span style={{ marginRight: "4px" }} aria-hidden="true">
+          {intl.formatMessage(messages.symbolBullet)}
+        </span>
+        {tip.content}
+      </div>
     </div>
   );
 }
@@ -175,7 +185,7 @@ export function TipsCarousel({ category }: TipsCarouselProps) {
             onClick={prevTip}
             ariaLabel={intl.formatMessage(messages.prevTip)}
           >
-            ←
+            {intl.formatMessage(messages.symbolArrowLeft)}
           </Button>
           <span
             style={{ fontSize: "11px", color: "var(--text-muted)" }}
@@ -190,7 +200,7 @@ export function TipsCarousel({ category }: TipsCarouselProps) {
             onClick={nextTip}
             ariaLabel={intl.formatMessage(messages.nextTip)}
           >
-            →
+            {intl.formatMessage(messages.symbolArrowRight)}
           </Button>
         </div>
       )}
@@ -206,6 +216,7 @@ interface LargeFormatEducationProps {
 }
 
 export function LargeFormatEducation({ job }: LargeFormatEducationProps) {
+  const intl = useIntl();
   if (job.category !== "large" && job.category !== "xlarge") {
     return null;
   }
@@ -221,7 +232,7 @@ export function LargeFormatEducation({ job }: LargeFormatEducationProps) {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
-        <span style={{ fontSize: "20px" }} aria-hidden="true">🖼️</span>
+        <span style={{ fontSize: "20px" }} aria-hidden="true">{intl.formatMessage(messages.symbolEmojiPicture)}</span>
         <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--print-secondary)" }}>
           <FormattedMessage {...messages.largeFormatTitle} />
         </span>
@@ -231,14 +242,20 @@ export function LargeFormatEducation({ job }: LargeFormatEducationProps) {
         <p style={{ marginBottom: "var(--space-sm)" }}>
           <strong>
             <FormattedMessage {...messages.viewingDistanceFor} values={{ jobName: job.name }} />
-          </strong>{" "}
-          <span aria-hidden="true">{job.viewingDistance}</span>
+          </strong>
+          <span aria-hidden="true" style={{ marginLeft: "4px" }}>{job.viewingDistance}</span>
         </p>
         <p style={{ marginBottom: "var(--space-sm)" }}>
           <strong>
             <FormattedMessage {...messages.requiredDPI} />
-          </strong>{" "}
-          <span aria-hidden="true">{job.minDPI}-{job.recommendedDPI} DPI</span>
+          </strong>
+          <span aria-hidden="true" style={{ marginLeft: "4px" }}>
+            {job.minDPI}
+            {intl.formatMessage(messages.symbolDash)}
+            {job.recommendedDPI}
+            {intl.formatMessage(messages.symbolBullet)}
+            <FormattedMessage {...messages.dpiLabel} />
+          </span>
           {job.minDPI < 100 && (
             <FormattedMessage {...messages.yesReallyLow} />
           )}
@@ -246,8 +263,10 @@ export function LargeFormatEducation({ job }: LargeFormatEducationProps) {
         <p style={{ marginBottom: 0 }}>
           <strong>
             <FormattedMessage {...messages.whyLargeFormatTitle} />
-          </strong>{" "}
-          <FormattedMessage {...messages.whyLargeFormatDesc} />
+          </strong>
+          <span style={{ marginLeft: "4px" }}>
+            <FormattedMessage {...messages.whyLargeFormatDesc} />
+          </span>
         </p>
       </div>
 
@@ -263,8 +282,11 @@ export function LargeFormatEducation({ job }: LargeFormatEducationProps) {
           }}
         >
           <strong>
-            <span aria-hidden="true">💡</span> <FormattedMessage {...messages.labelPrepressNote} />
-            <span aria-hidden="true">:</span>
+            <span aria-hidden="true">{intl.formatMessage(messages.symbolEmojiIdea)}</span>
+            <span style={{ marginLeft: "4px" }}>
+              <FormattedMessage {...messages.labelPrepressNote} />
+            </span>
+            <span aria-hidden="true">{intl.formatMessage(messages.symbolColon)}</span>
           </strong> {job.notes}
         </div>
       )}

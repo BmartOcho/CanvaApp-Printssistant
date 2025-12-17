@@ -1,8 +1,9 @@
+import "@testing-library/jest-dom";
 import { TestAppI18nProvider } from "@canva/app-i18n-kit";
 import { TestAppUiProvider } from "@canva/app-ui-kit";
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
-import App from "../app";
+import { App } from "../app";
 import * as canvaDesign from "@canva/design";
 
 // Mock the entire @canva/design module

@@ -22,7 +22,8 @@ export interface ImageAnalysisResult {
     verticalDPI: number;
     status: "excellent" | "good" | "acceptable" | "low" | "critical";
     viewingDistance: string;
-    recommendation: string;
+    recommendationKey: string;
+    recommendationValues?: Record<string, any>;
 }
 
 export interface AnalysisState {
@@ -52,7 +53,7 @@ export function useImageAnalysis(currentJob: PrintJob | null) {
         if (!currentJob) {
             setState((prev) => ({
                 ...prev,
-                error: "Please select a print job first",
+                error: "Please select a print job first", // We'll handle this in the component or keep as is if it's internal
             }));
             return;
         }
@@ -141,23 +142,32 @@ export function useImageAnalysis(currentJob: PrintJob | null) {
                     const viewingInfo = calculateViewingDistance(dpiInfo.effective);
 
                     // Generate recommendation based on status
-                    let recommendation: string;
+                    let recommendationKey: string;
+                    let recommendationValues: Record<string, any> | undefined;
+
                     switch (status) {
                         case "excellent":
-                            recommendation = "This image exceeds requirements and will print beautifully!";
+                            recommendationKey = "recommendationExcellent";
                             break;
                         case "good":
-                            recommendation = "This image meets quality standards for this print size.";
+                            recommendationKey = "recommendationGood";
                             break;
                         case "acceptable":
-                            recommendation = `Quality is borderline. Fine for viewing from ${viewingInfo.description}.`;
+                            recommendationKey = "recommendationAcceptable";
+                            recommendationValues = { distance: viewingInfo.description };
                             break;
                         case "low":
-                            recommendation = `Image may appear pixelated. Consider using a higher resolution image or reducing print size.`;
+                            recommendationKey = "recommendationLow";
                             break;
                         case "critical":
-                            recommendation = `Image will print blurry! You need at least ${Math.ceil(placedWidthInches * currentJob.minDPI)}x${Math.ceil(placedHeightInches * currentJob.minDPI)} pixels for this size.`;
+                            recommendationKey = "recommendationCritical";
+                            recommendationValues = { 
+                                width: Math.ceil(placedWidthInches * currentJob.minDPI),
+                                height: Math.ceil(placedHeightInches * currentJob.minDPI)
+                            };
                             break;
+                        default:
+                            recommendationKey = "recommendationGood";
                     }
 
                     results.push({
@@ -172,7 +182,8 @@ export function useImageAnalysis(currentJob: PrintJob | null) {
                         verticalDPI: dpiInfo.vertical,
                         status,
                         viewingDistance: viewingInfo.description,
-                        recommendation,
+                        recommendationKey,
+                        recommendationValues,
                     });
                 } catch (imgError) {
                     console.error("Error analyzing image:", imgError);

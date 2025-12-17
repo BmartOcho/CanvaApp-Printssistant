@@ -147,8 +147,8 @@ export function App() {
             >
               <strong>
                 <FormattedMessage {...messages.currentDesign} />
-              </strong>{" "}
-              <span aria-hidden="true">
+              </strong>
+              <span aria-hidden="true" style={{ marginLeft: "4px" }}>
                 {pageDimensions.widthInches.toFixed(2)}
                 {intl.formatMessage(messages.symbolUnitInch)}
                 {intl.formatMessage(messages.symbolSeparator)}
@@ -224,8 +224,10 @@ export function App() {
           <JobBadge job={currentJob} onClick={() => setView("job-select")} />
           {progress === 100 ? (
             <span className="status-badge excellent">
-              <span aria-hidden="true">{intl.formatMessage(messages.symbolEmojiCheck)}</span>{" "}
-              <FormattedMessage {...messages.ready} />
+              <span aria-hidden="true">{intl.formatMessage(messages.symbolEmojiCheck)}</span>
+              <span style={{ marginLeft: "4px" }}>
+                <FormattedMessage {...messages.ready} />
+              </span>
             </span>
           ) : (
             <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>

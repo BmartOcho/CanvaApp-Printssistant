@@ -213,7 +213,7 @@ function ImageResultCard({ result, index }: ImageResultCardProps) {
         <div className="image-thumbnail-container" style={{ width: "48px" }}>
           <ImageCard
             thumbnailUrl={result.thumbnailUrl}
-            onSelect={() => {}}
+            alt={intl.formatMessage(messages.imageLabel, { index: index + 1 })}
           />
         </div>
         <div className="image-info">
@@ -224,16 +224,26 @@ function ImageResultCard({ result, index }: ImageResultCardProps) {
             />
           </div>
           <div className={`image-dpi ${result.status}`}>
-            <span aria-hidden="true">{statusInfo.emoji}</span>{" "}
-            <span>{result.effectiveDPI}</span>{" "}
-            <FormattedMessage {...messages.dpiLabel} />{" "}
-            <span aria-hidden="true">{intl.formatMessage(messages.symbolDash)}</span>{" "}
-            <span>{intl.formatMessage(statusLabelMap[result.status])}</span>
+            <FormattedMessage
+              {...messages.dpiValueStatus}
+              values={{
+                emoji: <span aria-hidden="true">{statusInfo.emoji}</span>,
+                dpi: result.effectiveDPI,
+                label: intl.formatMessage(messages.dpiLabel),
+                dash: <span aria-hidden="true">{intl.formatMessage(messages.symbolDash)}</span>,
+                status: intl.formatMessage(statusLabelMap[result.status])
+              }}
+            />
           </div>
         </div>
       </div>
       <div className="image-result-body">
-        <div className="image-recommendation">{result.recommendation}</div>
+        <div className="image-recommendation">
+          <FormattedMessage 
+            {...((messages as any)[result.recommendationKey])} 
+            values={result.recommendationValues} 
+          />
+        </div>
         <div
           className="text-small text-muted mt-sm"
           style={{ display: "flex", justifyContent: "space-between" }}

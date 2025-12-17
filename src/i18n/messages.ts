@@ -172,6 +172,10 @@ export const messages = defineMessages({
     defaultMessage: "{emoji} {count} {count, plural, one {image} other {images}} - {label}",
     description: "Summary badge text",
   },
+  dpiValueStatus: {
+    defaultMessage: "{emoji} {dpi} {label} {dash} {status}",
+    description: "Detailed DPI display for an image",
+  },
   imageLabel: {
     defaultMessage: "Image {index}",
     description: "Alt text for thumbnail",
@@ -206,6 +210,26 @@ export const messages = defineMessages({
   statusLowDesc: { defaultMessage: "Below minimum. May show visible pixelation when printed.", description: "Status description" },
   statusCriticalLabel: { defaultMessage: "Too Low", description: "Status label" },
   statusCriticalDesc: { defaultMessage: "Significantly below requirements. Will print blurry.", description: "Status description" },
+  recommendationExcellent: {
+    defaultMessage: "This image exceeds requirements and will print beautifully!",
+    description: "Recommendation for excellent resolution",
+  },
+  recommendationGood: {
+    defaultMessage: "This image meets quality standards for this print size.",
+    description: "Recommendation for good resolution",
+  },
+  recommendationAcceptable: {
+    defaultMessage: "Quality is borderline. Fine for viewing from {distance}.",
+    description: "Recommendation for acceptable resolution",
+  },
+  recommendationLow: {
+    defaultMessage: "Image may appear pixelated. Consider using a higher resolution image or reducing print size.",
+    description: "Recommendation for low resolution",
+  },
+  recommendationCritical: {
+    defaultMessage: "Image will print blurry! You need at least {width}x{height} pixels for this size.",
+    description: "Recommendation for critical resolution",
+  },
 
   /**
    * Print Categories
