@@ -1,227 +1,464 @@
-import React, { useState } from "react";
-import { Box, Text, Select, Rows, Button } from "@canva/app-ui-kit";
-import { addElementAtPoint, getCurrentPageContext } from "@canva/design";
-import { PRINT_JOBS } from "./data/print_specs";
-import { ChecklistItem } from "./components/ChecklistItem";
+/**
+ * Main App Component
+ * Printssistant: Expert prepress prep in Canva
+ */
 
-const INCH = 96;
+import React, { useState, useEffect } from "react";
+import { Button, Rows, Text } from "@canva/app-ui-kit";
+import { FormattedMessage, useIntl } from "react-intl";
+import { getCurrentPageContext } from "@canva/design";
+import { useImageAnalysis } from "./hooks/useImageAnalysis";
+import { DPIAnalyzer, DPISummaryBadge } from "./components/DPIAnalyzer";
+import { JobSelector, JobBadge } from "./components/JobSelector";
+import { ContextualTips, LargeFormatEducation, TipCard } from "./components/Tips";
+import { getJobById, type PrintJob } from "./data/print_specs";
+import { DPI_TIPS } from "./data/dpi_guidelines";
+import { messages } from "./i18n/messages";
 
-export default function App() {
-  // App State
-  const [step, setStep] = useState<"setup" | "checklist">("setup");
-  const [selectedJobId, setSelectedJobId] = useState(PRINT_JOBS[0].id);
+type View = "welcome" | "job-select" | "main";
+
+export function App() {
+  const intl = useIntl();
+  const [view, setView] = useState<View>("welcome");
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [completedChecks, setCompletedChecks] = useState<string[]>([]);
-  const [sizeWarning, setSizeWarning] = useState<string | null>(null);
+  const [pageDimensions, setPageDimensions] = useState<{ widthInches: number; heightInches: number } | null>(null);
+  const [sizeMatch, setSizeMatch] = useState<"match" | "mismatch" | "unknown">("unknown");
 
-  const currentJob = PRINT_JOBS.find(j => j.id === selectedJobId) || PRINT_JOBS[0];
+  const currentJob = selectedJobId ? getJobById(selectedJobId) || null : null;
+  const imageAnalysis = useImageAnalysis(currentJob as PrintJob | null);
 
-  // -------------------------
-  // LOGIC: Size Verification
-  // -------------------------
-  async function verifySize() {
-    const ctx = await getCurrentPageContext();
-    if (!ctx || !ctx.dimensions) return;
-
-    const { width, height } = ctx.dimensions;
-    const currentW = width / INCH;
-    const currentH = height / INCH;
-
-    const isMatch = 
-      (Math.abs(currentW - currentJob.width) < 0.05 && Math.abs(currentH - currentJob.height) < 0.05) ||
-      (Math.abs(currentW - currentJob.height) < 0.05 && Math.abs(currentH - currentJob.width) < 0.05);
-
-    if (isMatch) {
-      setStep("checklist");
-      setSizeWarning(null);
-    } else {
-      setSizeWarning(
-        `Current size (${currentW.toFixed(2)}" x ${currentH.toFixed(2)}") does not match ${currentJob.name} (${currentJob.width}" x ${currentJob.height}"). Please resize your design.`
-      );
-    }
-  }
-
-  // -------------------------
-  // LOGIC: Add Trim & Bleed Guide (Visualization Only)
-  // -------------------------
-  async function addGuides() {
-    const ctx = await getCurrentPageContext();
-    if (!ctx || !ctx.dimensions) return;
-
-    const { width, height } = ctx.dimensions;
-    const bleed = currentJob.bleed * INCH;
-    
-    // Draw Trim Box (Red) - The final cut line
-    await addBox(0, 0, width, height, "#FF0000", "Trim Box (Cut Line)");
-    
-    // Draw Bleed Box (Blue) - Visualizing the required 1/8" or 3mm space
-    if (bleed > 0) {
-        await addBox(-bleed, -bleed, width + (bleed * 2), height + (bleed * 2), "#0000FF", "Bleed Guide");
-    }
-    toggleComplete("trim_bleed_guide_added");
-  }
-
-  async function addBox(x: number, y: number, w: number, h: number, color: string, name: string) {
-    const thickness = 2;
-    const paths = [
-        { d: `M 0 0 H ${w} V ${thickness} H 0 Z`, fill: { color } },
-        { d: `M 0 ${h - thickness} H ${w} V ${h} H 0 Z`, fill: { color } },
-        { d: `M 0 0 H ${thickness} V ${h} H 0 Z`, fill: { color } },
-        { d: `M ${w - thickness} 0 H ${w} V ${h} H ${w - thickness} Z`, fill: { color } }
-    ];
-    await addElementAtPoint({ type: "shape", top: y, left: x, width: w, height: h, paths, viewBox: { width: w, height: h, top: 0, left: 0 }, name } as any);
-  }
-
-  // -------------------------
-  // VIEW LOGIC
-  // -------------------------
-  const toggleComplete = (id: string) => {
-    setCompletedChecks(prev => {
-        // Toggle logic: If already checked, remove it. If not, add it.
-        const isCurrentlyChecked = prev.includes(id);
-        if (isCurrentlyChecked) {
-            return prev.filter(item => item !== id);
+  // Get current design context
+  useEffect(() => {
+    const fetchContext = async () => {
+      try {
+        const context = await getCurrentPageContext();
+        if (context && context.dimensions) {
+          // Canva SDK provides dimensions in points (1/72 inch)
+          const widthInches = context.dimensions.width / 72;
+          const heightInches = context.dimensions.height / 72;
+          setPageDimensions({ widthInches, heightInches });
         }
-        return [...prev, id];
-    });
+      } catch {
+        // Silent error for prod-ready
+      }
+    };
+    fetchContext();
+  }, []);
+
+  // Check if design size matches current job
+  useEffect(() => {
+    if (pageDimensions && currentJob) {
+      const wDiff = Math.abs(pageDimensions.widthInches - currentJob.width);
+      const hDiff = Math.abs(pageDimensions.heightInches - currentJob.height);
+      // Tolerance of 0.1 inch
+      if (wDiff < 0.1 && hDiff < 0.1) {
+        setSizeMatch("match");
+      } else {
+        setSizeMatch("mismatch");
+      }
+    }
+  }, [pageDimensions, currentJob]);
+
+  const handleSelectJob = (jobId: string) => {
+    setSelectedJobId(jobId);
+    setCompletedChecks([]); // Reset checklist for new job
   };
 
-  const allDone = completedChecks.length >= 4; // Check 4 items now
+  const toggleCheck = (id: string) => {
+    setCompletedChecks((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
 
-  // -------------------------
-  // VIEW: Setup Screen (Step 1)
-  // -------------------------
-  if (step === "setup") {
+  const requiredChecks = ["dpi_check", "bleed_check", "safe_zone"];
+  const completedRequired = requiredChecks.filter((id) =>
+    completedChecks.includes(id)
+  ).length;
+  const progress = Math.round((completedRequired / requiredChecks.length) * 100);
+
+  // ========================
+  // RENDER: Welcome Screen
+  // ========================
+  if (view === "welcome") {
     return (
-      <Box padding="2u">
-        <Rows spacing="2u">
-          <Text size="large" weight="bold">Printssistant Job Setup</Text>
-          <Text>Select your target print product to begin preflight checks.</Text>
+      <div className="printssistant-app">
+        <div className="welcome-container">
+          <div className="welcome-logo" aria-hidden="true">
+            {intl.formatMessage(messages.symbolEmojiPrinter)}
+          </div>
+          <h1 className="welcome-title">
+            <FormattedMessage {...messages.appTitle} />
+          </h1>
+          <p className="welcome-subtitle">
+            <FormattedMessage {...messages.appSubtitle} />
+          </p>
           
-          <Select
-            value={selectedJobId}
-            onChange={(v) => { setSelectedJobId(v); setSizeWarning(null); setCompletedChecks([]); }}
-            options={PRINT_JOBS.map(j => ({ label: j.name, value: j.id }))}
+          <div className="welcome-badge">
+            <span aria-hidden="true">{intl.formatMessage(messages.symbolEmojiCheck)}</span>
+            <span>
+              <FormattedMessage {...messages.worksWithFormats} />
+            </span>
+          </div>
+
+          <Button
+            variant="primary"
+            onClick={() => setView("job-select")}
             stretch
-          />
-
-          {sizeWarning && (
-            <Box background="criticalLow" padding="1u" borderRadius="standard">
-              <Text tone="critical" size="small">{sizeWarning}</Text>
-            </Box>
-          )}
-
-          <Button variant="primary" onClick={verifySize} stretch>
-            Start Preflight
+          >
+            {intl.formatMessage(messages.getStarted)}
           </Button>
-          
-          {sizeWarning && (
-             <Button variant="secondary" onClick={() => setStep("checklist")} stretch>
-               Proceed Anyway
-             </Button>
-          )}
-        </Rows>
-      </Box>
+
+          <div className="mt-lg">
+            {(() => {
+              const tip = DPI_TIPS.find((t) => t.id === "large_format_myth");
+              return tip ? <TipCard tip={tip} variant="compact" /> : null;
+            })()}
+          </div>
+        </div>
+      </div>
     );
   }
 
-  // -------------------------
-  // VIEW: Checklist Screen (Steps 2 & 3)
-  // -------------------------
-  return (
-    <Box padding="2u">
-      <Rows spacing="2u">
-        <Box borderBottom="standard" paddingBottom="1u">
-            <Text size="large" weight="bold">Preflight: {currentJob.name}</Text>
-            <Button variant="tertiary" size="small" onClick={() => setStep("setup")}>Change Job</Button>
-        </Box>
+  // ========================
+  // RENDER: Job Selection
+  // ========================
+  if (view === "job-select") {
+    return (
+      <div className="printssistant-app" style={{ padding: "var(--space-lg)" }}>
+        <Rows spacing="2u">
+          <div>
+            <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "4px" }}>
+              <FormattedMessage {...messages.selectFormat} />
+            </div>
+            <Text size="small" tone="tertiary">
+              <FormattedMessage {...messages.chooseOutputSize} />
+            </Text>
+          </div>
 
-        {/* CHECK 1: GUIDE VISUALIZATION (Action/Required) */}
-        <ChecklistItem
-          title="1. Visualize Trim & Bleed"
-          isComplete={completedChecks.includes("trim_bleed_guide_added")}
-          onComplete={() => toggleComplete("trim_bleed_guide_added")}
-          buttonLabel="Add Trim/Bleed Guides"
-          onAction={addGuides}
-          description={
-            <Rows spacing="1u">
-              <Text>Add temporary color-coded guides to ensure your design is safe to cut.</Text>
-              <Text size="small">
-                * **Red Box:** The final trim/cut line.<br/>
-                * **Blue Box:** The {currentJob.bleed}" bleed edge.<br/>
-                <br/>
-                Click the button to add these guides as layers.
-              </Text>
-            </Rows>
-          }
-        />
-        
-        {/* CHECK 2: SAFE ZONE/MARGIN CHECK (Native Feature) */}
-        <ChecklistItem
-          title="2. Check Safe Zone Margins"
-          isComplete={completedChecks.includes("native_margins")}
-          onComplete={() => toggleComplete("native_margins")}
-          buttonLabel=""
-          description={
-            <Rows spacing="1u">
-              <Text>Ensure vital elements like logos and text are away from the edges.</Text>
-              <Text size="small">
-                1. Go to **File {'>'} View Settings**.<br/>
-                2. Enable **Show Margins**.<br/>
-                3. Ensure no text or logos are on or outside the dotted margin line.
-              </Text>
-            </Rows>
-          }
-        />
+          {pageDimensions && (
+            <div
+              style={{
+                background: "var(--bg-tertiary)",
+                padding: "var(--space-sm) var(--space-md)",
+                borderRadius: "var(--radius-md)",
+                fontSize: "12px",
+              }}
+            >
+              <strong>
+                <FormattedMessage {...messages.currentDesign} />
+              </strong>{" "}
+              <span aria-hidden="true">
+                {pageDimensions.widthInches.toFixed(2)}
+                {intl.formatMessage(messages.symbolUnitInch)}
+                {intl.formatMessage(messages.symbolSeparator)}
+                {pageDimensions.heightInches.toFixed(2)}
+                {intl.formatMessage(messages.symbolUnitInch)}
+              </span>
+            </div>
+          )}
 
-        {/* CHECK 3: BLEED CHECK (Native Feature) */}
-        <ChecklistItem
-          title="3. Verify Bleed Coverage"
-          isComplete={completedChecks.includes("bleed_coverage")}
-          onComplete={() => toggleComplete("bleed_coverage")}
-          buttonLabel=""
-          description={
-            <Rows spacing="1u">
-              <Text>Does your background or imagery extend past the cut line?</Text>
-              <Text size="small">
-                1. Go to **File {'>'} View Settings** and enable **Show print bleed**.<br/>
-                2. Stretch your background to cover all white space up to the **Blue Bleed Guide**.
-              </Text>
-            </Rows>
-          }
-        />
+          <JobSelector
+            selectedJobId={selectedJobId}
+            onSelectJob={handleSelectJob}
+          />
 
-        {/* CHECK 4: COLOR AND DPI (Export Settings) */}
-        <ChecklistItem
-          title="4. Color & Resolution Check"
-          isComplete={completedChecks.includes("color_dpi")}
-          onComplete={() => toggleComplete("color_dpi")}
-          buttonLabel=""
-          description={
+          {currentJob && (
             <Rows spacing="1u">
-              <Text>Final check on image quality and color space conversion.</Text>
-              <Text size="small">
-                * **Color:** Print requires CMYK. Go to **Share {'>'} Download**, select **PDF Print**, and choose **CMYK** (Pro feature) for accurate colors.<br/>
-                * **DPI:** Zoom in to **200%** on any image. If it looks blurry on-screen, it will print blurry (300 DPI minimum).
-              </Text>
-            </Rows>
-          }
-        />
+              {sizeMatch === "mismatch" && (
+                <div className="size-warning">
+                  <span className="size-warning-icon" aria-hidden="true">
+                    {intl.formatMessage(messages.symbolEmojiWarning)}
+                  </span>
+                  <div className="size-warning-text">
+                    <FormattedMessage 
+                      {...messages.sizeMismatch} 
+                      values={{ 
+                        jobName: currentJob.name,
+                        width: currentJob.width,
+                        height: currentJob.height
+                      }} 
+                    />
+                  </div>
+                </div>
+              )}
 
-
-        {/* SUCCESS STATE */}
-        {allDone && (
-          <Box background="positiveLow" padding="2u" borderRadius="standard" marginTop="2u">
-            <Rows spacing="1u">
-              <Text weight="bold" tone="positive">🎉 Ready for Production!</Text>
-              <Text>
-                Final steps: 
-                <br/>1. **Delete** the red/blue guide elements.
-                <br/>2. Go to **Share {'>'} Download**, select **PDF Print**, and check the option for **Crop marks and bleed**.
-              </Text>
+              <Button
+                variant="primary"
+                onClick={() => setView("main")}
+                stretch
+              >
+                {intl.formatMessage(messages.continueWithJob, { jobName: currentJob.name })}
+              </Button>
             </Rows>
-          </Box>
+          )}
+
+          <Button
+            variant="secondary"
+            onClick={() => setView("welcome")}
+            stretch
+          >
+            {intl.formatMessage(messages.back)}
+          </Button>
+        </Rows>
+      </div>
+    );
+  }
+
+  // ========================
+  // RENDER: Main Analysis View
+  // ========================
+  if (view === "main" && currentJob) {
+    return (
+      <div className="printssistant-app">
+        {/* Header */}
+        <div
+          style={{
+            padding: "var(--space-md) var(--space-lg)",
+            borderBottom: "1px solid var(--border-light)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <JobBadge job={currentJob} onClick={() => setView("job-select")} />
+          {progress === 100 ? (
+            <span className="status-badge excellent">
+              <span aria-hidden="true">{intl.formatMessage(messages.symbolEmojiCheck)}</span>{" "}
+              <FormattedMessage {...messages.ready} />
+            </span>
+          ) : (
+            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+              <FormattedMessage {...messages.percentComplete} values={{ progress }} />
+            </span>
+          )}
+        </div>
+
+        {/* Progress bar */}
+        <div className="progress-container" style={{ padding: "0 var(--space-lg)" }}>
+          <div className="progress-bar">
+            <div className="progress-fill" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+
+        {/* Large format education */}
+        {(currentJob.category === "large" || currentJob.category === "xlarge") && (
+          <div style={{ padding: "var(--space-lg)" }}>
+            <LargeFormatEducation job={currentJob} />
+          </div>
         )}
-      </Rows>
-    </Box>
+
+        {/* DPI Analyzer Section */}
+        <div style={{ borderBottom: "1px solid var(--border-light)" }}>
+          <div
+            style={{
+              padding: "var(--space-md) var(--space-lg)",
+              background: "var(--bg-secondary)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+              <span style={{ fontSize: "16px" }} aria-hidden="true">
+                {intl.formatMessage(messages.symbolEmojiChart)}
+              </span>
+              <span style={{ fontWeight: 700, fontSize: "14px" }}>
+                {intl.formatMessage(messages.imageResolutionCheck)}
+              </span>
+            </div>
+            <DPISummaryBadge
+              status={imageAnalysis.getOverallStatus()}
+              count={imageAnalysis.results.length}
+            />
+          </div>
+
+          <DPIAnalyzer
+            isAnalyzing={imageAnalysis.isAnalyzing}
+            results={imageAnalysis.results}
+            error={imageAnalysis.error}
+            selectedCount={imageAnalysis.selectedCount}
+            currentJob={currentJob}
+            onAnalyze={imageAnalysis.analyzeSelection}
+            onClear={imageAnalysis.clearResults}
+          />
+
+          {imageAnalysis.results.length > 0 && (
+            <div style={{ padding: "0 var(--space-lg) var(--space-lg)" }}>
+              <Button
+                variant={imageAnalysis.getOverallStatus() === "critical" || imageAnalysis.getOverallStatus() === "low" ? "secondary" : "primary"}
+                onClick={() => toggleCheck("dpi_check")}
+                stretch
+              >
+                {completedChecks.includes("dpi_check")
+                  ? intl.formatMessage(messages.resolutionChecked)
+                  : intl.formatMessage(messages.markReviewed)}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Manual Checks Section */}
+        <div style={{ padding: "var(--space-lg)" }}>
+          <div style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.5px", color: "var(--text-muted)" }}>
+            <FormattedMessage {...messages.manualChecksSection} />
+          </div>
+          
+          <div style={{ marginTop: "var(--space-md)" }}>
+            <ManualCheckItem
+              id="bleed_check"
+              title={intl.formatMessage(messages.bleedCheckTitle)}
+              description={intl.formatMessage(messages.bleedCheckDesc, { bleed: currentJob.bleed })}
+              isComplete={completedChecks.includes("bleed_check")}
+              onToggle={() => toggleCheck("bleed_check")}
+              tip={intl.formatMessage(messages.bleedCheckTip, { jobName: currentJob.name, bleed: currentJob.bleed })}
+            />
+
+            <ManualCheckItem
+              id="safe_zone"
+              title={intl.formatMessage(messages.safeZoneTitle)}
+              description={intl.formatMessage(messages.safeZoneDesc, { margin: currentJob.safeMargin })}
+              isComplete={completedChecks.includes("safe_zone")}
+              onToggle={() => toggleCheck("safe_zone")}
+              tip={intl.formatMessage(messages.safeZoneTip)}
+            />
+
+            <ManualCheckItem
+              id="color_check"
+              title={intl.formatMessage(messages.colorCheckTitle)}
+              description={intl.formatMessage(messages.colorCheckDesc)}
+              isComplete={completedChecks.includes("color_check")}
+              onToggle={() => toggleCheck("color_check")}
+              tip={intl.formatMessage(messages.colorCheckTip)}
+              isOptional
+            />
+          </div>
+        </div>
+
+        {/* Success State */}
+        {progress === 100 && (
+          <div
+            style={{
+              padding: "var(--space-lg)",
+              background: "var(--status-excellent-bg)",
+              margin: "var(--space-lg)",
+              borderRadius: "var(--radius-lg)",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: "32px", marginBottom: "var(--space-sm)" }} aria-hidden="true">
+              {intl.formatMessage(messages.symbolEmojiParty)}
+            </div>
+            <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--status-excellent)" }}>
+              <FormattedMessage {...messages.readyForPrint} />
+            </div>
+            <Text size="small" tone="tertiary">
+              <FormattedMessage {...messages.readyInstructions} />
+            </Text>
+          </div>
+        )}
+
+        {/* Tips at bottom */}
+        <div style={{ padding: "var(--space-lg)" }}>
+          <ContextualTips job={currentJob} showCount={1} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="printssistant-app" style={{ padding: "var(--space-lg)" }}>
+      <Text>
+        <FormattedMessage {...messages.somethingWentWrong} />
+      </Text>
+      <Button variant="secondary" onClick={() => setView("welcome")}>
+        {intl.formatMessage(messages.startOver)}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Manual check item component
+ */
+interface ManualCheckItemProps {
+  id: string;
+  title: string;
+  description: string;
+  tip?: string;
+  isComplete: boolean;
+  isOptional?: boolean;
+  onToggle: () => void;
+}
+
+function ManualCheckItem({
+  id,
+  title,
+  description,
+  tip,
+  isComplete,
+  isOptional,
+  onToggle,
+}: ManualCheckItemProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const intl = useIntl();
+
+  return (
+    <div
+      className={`checklist-item ${isComplete ? "complete" : ""} ${isExpanded ? "expanded" : ""}`}
+    >
+      <div
+        className="checklist-header"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div
+          className="checklist-checkbox"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+        >
+          {isComplete && <span aria-hidden="true">{intl.formatMessage(messages.symbolEmojiCheck)}</span>}
+        </div>
+        <span className="checklist-title">
+          {title}
+          {isOptional && (
+            <span style={{ fontSize: "10px", color: "var(--text-muted)", marginLeft: "6px" }}>
+              <span aria-hidden="true">{intl.formatMessage(messages.symbolArrowLeft)}</span>
+              <FormattedMessage defaultMessage="Optional" description="Optional label" />
+              <span aria-hidden="true">{intl.formatMessage(messages.symbolArrowRight)}</span>
+            </span>
+          )}
+        </span>
+        <span className="checklist-expand-icon" aria-hidden="true">
+          {intl.formatMessage(messages.symbolDropdown)}
+        </span>
+      </div>
+
+      {isExpanded && (
+        <div className="checklist-body">
+          <div className="checklist-description">{description}</div>
+          {tip && (
+            <div
+              style={{
+                fontSize: "11px",
+                color: "var(--print-primary)",
+                marginTop: "var(--space-sm)",
+              }}
+            >
+              <span aria-hidden="true">{intl.formatMessage(messages.symbolEmojiIdea)}</span> {tip}
+            </div>
+          )}
+          {!isComplete && (
+              <Button
+                variant="primary"
+                onClick={onToggle}
+              >
+                {intl.formatMessage(messages.markComplete)}
+              </Button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
