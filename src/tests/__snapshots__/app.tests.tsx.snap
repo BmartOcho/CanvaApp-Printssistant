@@ -1,5 +1,92 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`App Component should have a consistent snapshot 1`] = `
+<div>
+  <div
+    class="printssistant-app"
+  >
+    <div
+      class="welcome-container"
+    >
+      <div
+        aria-hidden="true"
+        class="welcome-logo"
+      >
+        Printer
+      </div>
+      <h1
+        class="welcome-title"
+      >
+        Printssistant
+      </h1>
+      <p
+        class="welcome-subtitle"
+      >
+        Professional preflight checks for print-ready designs. Built by prepress operators, for designers.
+      </p>
+      <div
+        class="welcome-badge"
+      >
+        <span
+          aria-hidden="true"
+        >
+          Check
+        </span>
+        <span>
+          Works with all print formats
+        </span>
+      </div>
+      <button
+        class="_5KtATA LQzFZw VgvqkQ _8ERLTg rV61VQ LQzFZw VgvqkQ _4_iekA _3oHQrw j34Zww aqbYPg _3FvZZg"
+        type="button"
+      >
+        <span
+          class="khPe7Q"
+        >
+          Get Started
+        </span>
+      </button>
+      <div
+        class="mt-lg"
+      >
+        <div
+          class="tip-card"
+          style="margin: 0px;"
+        >
+          <div
+            class="tip-content"
+            style="font-size: 11px;"
+          >
+            <strong>
+              <span
+                aria-hidden="true"
+              >
+                🖼️
+              </span>
+              <span
+                style="margin-left: 4px;"
+              >
+                The 300 DPI Myth
+              </span>
+              <span
+                aria-hidden="true"
+              >
+                :
+              </span>
+            </strong>
+            <span
+              style="margin-left: 4px;"
+            >
+              You do NOT need 300 DPI for large format prints! A 3x8 ft banner at 72 DPI looks great because nobody views it from 6 inches away.
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
 exports[`Hello World Tests should have a consistent snapshot 1`] = `
 <div>
   <div

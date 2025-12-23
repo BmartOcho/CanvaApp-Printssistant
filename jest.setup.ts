@@ -1,5 +1,8 @@
 // For usage information, see the README.md file.
 
+// Import jest-dom for custom matchers
+import '@testing-library/jest-dom';
+
 // Import Canva SDK testing utilities
 import * as asset from "@canva/asset/test";
 import * as design from "@canva/design/test";

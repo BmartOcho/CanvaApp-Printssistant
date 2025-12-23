@@ -12,5 +12,9 @@
       }
     ]
   },
-  "intents": ["design-editor"]
+    "intents": {
+    "design_editor": {
+      "enrolled": true
+    }
+  }
 }
